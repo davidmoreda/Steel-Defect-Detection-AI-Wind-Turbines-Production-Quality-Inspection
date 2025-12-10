@@ -1,0 +1,9 @@
+__pycache__/
+*.ipynb_checkpoints
+*.pth
+*.mp4
+*.avi
+inference_results/
+.DS_Store
+.idea/
+.vscode/

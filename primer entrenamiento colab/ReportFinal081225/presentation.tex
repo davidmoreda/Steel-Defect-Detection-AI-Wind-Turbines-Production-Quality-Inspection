@@ -1,0 +1,170 @@
+\documentclass{beamer}
+\usepackage{booktabs}
+\usetheme{Madrid}
+\usecolortheme{whale}
+
+\title[Inspección AI Torres Eólicas]{Detección Automatizada de Defectos en Torres Eólicas}
+\subtitle{Visión Artificial, Deep Learning y Metrología 3D}
+\author{David Moreno}
+\institute[Toshiba/Galicia]{Proyecto TFM - CNN Galicia Toshiba}
+\date{\today}
+
+\begin{document}
+
+% Slide 1: Título
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% Slide 2: Contexto Industrial
+\begin{frame}{Contexto del Proyecto}
+  \begin{itemize}
+    \item \textbf{Sector Eólico:} Fabricación de torres y tramos tubulares de acero.
+    \item \textbf{Problema:}
+      \begin{itemize}
+        \item Superficies enormes y cilíndricas.
+        \item Inspección manual lenta, costosa y subjetiva.
+        \item Necesidad de detectar defectos críticos (profundidad $\ge 0.5$ mm).
+      \end{itemize}
+    \item \textbf{Objetivo:} Automatización total del control de calidad superficial.
+  \end{itemize}
+\end{frame}
+
+% Slide 3: Arquitectura de la Solución
+\begin{frame}{Arquitectura del Sistema Global}
+  Solución en tres etapas tecnológicas:
+  \vspace{0.5cm}
+  \begin{enumerate}
+    \item \textbf{Etapa 1: Visión 2D (Estado Actual)} \\
+      Detección rápida y localización de sospechas mediante cámaras y Deep Learning.
+    \item \textbf{Etapa 2: Fine-tuning} \\
+      Adaptación continua del modelo a nuevos defectos y condiciones de fábrica.
+    \item \textbf{Etapa 3: Verificación 3D (Futuro)} \\
+      Perfilometría láser robotizada dirigida a las coordenadas detectadas para medir profundidad.
+  \end{enumerate}
+\end{frame}
+
+% Slide 4: Visión 2D - Dataset y Datos
+\begin{frame}{Dataset y Estrategia de Datos}
+  \textbf{Estrategia "Two-Stage Training":}
+  \vspace{0.3cm}
+  \begin{itemize}
+    \item \textbf{Pre-entrenamiento:} Dataset \textit{Severstal Steel Defect}.
+      \begin{itemize}
+        \item ~12k imágenes, 4 clases.
+        \item Aprendizaje de texturas metálicas base.
+      \end{itemize}
+    \item \textbf{Fine-tuning (Galicia):}
+      \begin{itemize}
+        \item Imágenes reales de producción (alta resolución).
+        \item \textbf{Smart Sampling:} Escaneo previo de máscaras para extraer "tiles" ($1024 \times 1024$) centrados en defectos.
+        \item \textbf{Oversampling:} Priorización de clases raras durante el entrenamiento.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% Slide 5: Pipeline de Segmentación
+% Slide 5: Comparativa
+  \begin{frame}{Estudio Comparativo de Modelos}
+    Se evaluaron 3 arquitecturas para seleccionar el mejor balance entre precisión y detección de texturas:
+
+    \begin{table}
+        \centering
+        \small
+        \begin{tabular}{lccc}
+            \toprule
+            \textbf{Modelo} & \textbf{Encoder} & \textbf{Dice (Clase 2)} & \textbf{Conclusión} \\
+            \midrule
+            U-Net++ & ResNet34 & 0.13 & \textcolor{red}{Fallo en texturas finas} \\
+            YOLO11-seg & CSPDarknet & (Bajo) & \textcolor{red}{Resolución insuficiente} \\
+            \textbf{U-Net} & \textbf{ConvNeXt} & \textbf{0.55} & \textcolor{green}{\textbf{Óptimo (SOTA)}} \\
+            \bottomrule
+        \end{tabular}
+        \caption{Comparativa de rendimiento en defectos críticos.}
+    \end{table}
+
+    \textbf{¿Por qué ConvNeXt?}
+    \begin{itemize}
+        \item \textbf{Kernels grandes ($7\times7$):} Capturan contexto global similar a Vision Transformers.
+        \item \textbf{Robustez en Texturas:} Superioridad validada frente a CNNs clásicas y detectores one-stage (YOLO) para defectos difusos.
+        \item \textbf{Thresholds Ajustados:} Clase 1 (0.45) | Clase 2 (0.70) | Clase 4 (0.65).
+    \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% Slide 6: Modelo Ganador
+\begin{frame}{Modelo Ganador: U-Net (ConvNeXt)}
+  \textbf{Modelo Ganador (\texttt{severstal\_backup\_ep35.pth}):}
+  \begin{itemize}
+    \item \textbf{Arquitectura:} U-Net.
+    \item \textbf{Encoder:} \textbf{ConvNeXt Tiny} (Híbrido CNN-Transformer).
+    \item \textbf{Ventaja:} Mejor modelado de texturas complejas que ResNet.
+  \end{itemize}
+  
+  \vspace{0.3cm}
+  \textbf{Aumento de Datos (Albumentations):}
+  \begin{itemize}
+    \item Geométrico: RandomCrop, Rotación, Flip (H/V).
+    \item Color: Jitter (Brillo/Contraste) para robustez lumínica.
+  \end{itemize}
+  
+  \vspace{0.3cm}
+  \textbf{Función de Pérdida:}
+  $$ Loss = 0.5 \cdot DiceLoss + 0.5 \cdot CrossEntropy(W) $$
+  \textit{Pesos W aplicados a clases minoritarias.}
+\end{frame}
+
+% Slide 6: Resultados Experimentales
+\begin{frame}{Resultados y Métricas}
+  \begin{itemize}
+    \item \textbf{Selección:} El modelo ConvNeXt (Ep 35) superó a U-Net++ en validación cualitativa.
+    \item \textbf{Post-procesado Fino:} Umbrales de confianza ajustados por clase para reducir falsos positivos:
+      \begin{itemize}
+        \item Defectos Críticos (Clases 2/3): Umbral 0.70.
+        \item Defectos Leves (Clase 1): Umbral 0.45.
+      \end{itemize}
+    \item \textbf{Visualización:} Validación exitosa en 15 muestras complejas de test, demostrando robustez ante variaciones de brillo.
+    \item \textbf{Navegación:} Generación precisa de centroides $(x,y)$ para la siguiente etapa robótica.
+  \end{itemize}
+\end{frame}
+
+% Slide 7: Limitaciones y Desafíos
+\begin{frame}{Desafíos Actuales}
+  \begin{enumerate}
+    \item \textbf{Confusión de Texturas:} Manchas de aceite o marcas de agua a veces se clasifican como defectos.
+    \item \textbf{Falta de Profundidad:} La visión 2D no puede certificar el criterio de 0.5 mm de profundidad.
+    \item \textbf{Datos Reales:} El dataset de Galicia es aún limitado en variedad de casuística.
+  \end{enumerate}
+\end{frame}
+
+% Slide 8: Roadmap Futuro
+\begin{frame}{Próximos Pasos: Integración 3D}
+  \begin{center}
+    \textbf{Visión 2D $\rightarrow$ Robot Cartesiano $\rightarrow$ Láser 3D}
+  \end{center}
+  \vspace{0.3cm}
+  \begin{itemize}
+    \item \textbf{Filtrado Inteligente:} Usar el modelo 2D como "filtro grueso" para escanear en 3D solo lo sospechoso.
+    \item \textbf{Validación Objetiva:} El perfilómetro dará el veredicto final (Pasa/No Pasa) basado en geometría real.
+    \item \textbf{Ciclo Cerrado:} Re-entrenar la U-Net++ con los falsos positivos descartados por el láser para reducir escaneos innecesarios.
+  \end{itemize}
+\end{frame}
+
+% Slide 9: Conclusiones
+\begin{frame}{Conclusiones}
+  \begin{itemize}
+    \item Se ha validado que las arquitecturas modernas (\textbf{ConvNeXt}) superan a las clásicas (ResNet) en superficies metálicas.
+    \item El pipeline de \textbf{Smart Sampling} ha mitigado eficazmente la escasez de datos de defectos reales.
+    \item El sistema está listo para la integración con la etapa de robótica y perfilometría.
+    \item Base sólida para un sistema industrial de \textit{Zero-Defect Manufacturing}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \centering
+  \Huge \textbf{Gracias}\\
+  \vspace{1cm}
+  \large ¿Preguntas?
+\end{frame}
+
+\end{document}

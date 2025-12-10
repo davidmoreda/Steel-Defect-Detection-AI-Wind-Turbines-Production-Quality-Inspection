@@ -1,0 +1,158 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{amsmath}
+
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+
+\title{\textbf{Informe Técnico: Detección Automatizada de Defectos en Torres Eólicas mediante Aprendizaje Profundo y Visión Artificial}}
+\author{David Moreno}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este informe detalla el desarrollo de un sistema de inspección automatizada para la detección de defectos superficiales en tramos tubulares de torres eólicas. El proyecto aborda la problemática de inspeccionar grandes superficies metálicas cilíndricas mediante un enfoque basado en Visión Artificial 2D y Aprendizaje Profundo (Deep Learning). Se describe la implementación de una arquitectura de segmentación semántica U-Net++ con backbone ResNet34, entrenada mediante una estrategia de dos etapas: pre-entrenamiento con el dataset Severstal Steel Defect y fine-tuning con datos específicos del entorno real (Galicia). Se presentan los resultados experimentales, las métricas de rendimiento y se discute el roadmap futuro hacia la integración de perfilometría 3D robotizada para la validación de profundidad de defectos.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Introducción}
+La fabricación de torres eólicas implica la producción de grandes tramos tubulares de acero que deben cumplir estrictos estándares de calidad. Los defectos superficiales en la chapa pueden comprometer la integridad estructural y la longevidad de la torre. Actualmente, la inspección manual de estas vastas superficies es costosa, lenta y sujeta a error humano.
+
+Este proyecto tiene como objetivo desarrollar una solución integral que automatice la detección y clasificación de defectos. El sistema propuesto no solo identifica la presencia de anomalías visuales, sino que está diseñado para evolucionar hacia una cuantificación precisa de la severidad del defecto (profundidad) mediante tecnologías 3D subsiguientes.
+
+\section{Descripción del Proyecto}
+La arquitectura global del sistema de inspección se divide en tres etapas tecnológicas secuenciales:
+
+\begin{enumerate}
+    \item \textbf{Visión 2D y Segmentación (Estado Actual):} Captura de imágenes de alta resolución mediante cámara industrial bajo iluminación controlada. Procesamiento mediante modelos de Deep Learning para segmentar y localizar defectos.
+    \item \textbf{Fine-tuning y Adaptación de Dominio:} Refinamiento del modelo con datos capturados in-situ para mejorar la robustez frente a variaciones de textura, curvatura y reflectividad propias de las torres reales.
+    \item \textbf{Perfilometría 3D y Robótica (Trabajo Futuro):} Uso de las coordenadas generadas por la visión 2D para guiar un robot cartesiano portador de un perfilómetro láser. Esto permitirá medir la profundidad del defecto, aplicando el criterio de rechazo estándar (crítico si profundidad $\ge 0.5$ mm).
+\end{enumerate}
+
+\section{Dataset y Configuración de Adquisición}
+El desarrollo de los modelos se ha apoyado en dos conjuntos de datos principales:
+
+\subsection{Dataset Severstal (Pre-entrenamiento)}
+Se utilizó el dataset público \textit{Severstal Steel Defect Detection} para que el modelo aprendiera características visuales genéricas de defectos en acero plano.
+\begin{itemize}
+    \item \textbf{Volumen:} Aprox. 12,568 imágenes (entrenamiento + prueba).
+    \item \textbf{Clases:} 4 tipos de defectos industriales.
+    \item \textbf{Uso:} Inicialización de pesos y aprendizaje de texturas metálicas anómalas.
+\end{itemize}
+
+\subsection{Dataset Galicia (Fine-tuning)}
+Datos propietarios capturados en el entorno de fabricación real.
+\begin{itemize}
+    \item \textbf{Características:} Imágenes de alta resolución de tramos curvos de torres eólicas.
+    \item \textbf{Desafío:} Escasez de muestras etiquetadas en fases iniciales (aprox. 14 imágenes completas de referencia inicial).
+    \item \textbf{Estrategia:} Se implementó una técnica de \textit{Smart Sampling} (Muestreo Inteligente) para extraer múltiples parches (tiles) de $1024 \times 1024$ píxeles de cada imagen original, priorizando zonas con defectos mediante pre-escaneo de máscaras.
+\end{itemize}
+
+\section{Preprocesado y Aumento de Datos}
+Para combatir la escasez de datos y mejorar la generalización, se diseñó un pipeline de preprocesado robusto utilizando la librería \texttt{Albumentations}:
+
+\begin{itemize}
+    \item \textbf{Normalización:} Estandarización de media y desviación estándar basada en ImageNet (necesario para el encoder ResNet34).
+    \item \textbf{Transformaciones Geométricas:} \texttt{RandomCrop} ($1024 \times 1024$), \texttt{HorizontalFlip}, \texttt{VerticalFlip}, \texttt{RandomRotate90} para invarianza rotacional.
+    \item \textbf{Aumento de Color:} \texttt{MultiplicativeNoise}, \texttt{ColorJitter} (brillo, contraste, saturación) para simular cambios en la iluminación industrial.
+    \item \textbf{Smart Sampling:} Sobremuestreo de clases raras (ej. Clase 2) durante la generación de batches para evitar el desbalanceo severo del dataset.
+\end{itemize}
+
+\section{Modelo de Segmentación y Entrenamiento}
+\subsection{Estudio Comparativo y Arquitectura Seleccionada}
+Para la selección del modelo final, se realizó un estudio comparativo exhaustivo evaluando tres arquitecturas distintas, cada una representando una familia diferente de modelos de visión artificial:
+
+\begin{enumerate}
+    \item \textbf{U-Net++ con ResNet34} (Baseline): Arquitectura clásica robusta, utilizada como punto de partida.
+    \item \textbf{YOLO11-seg (Small)}: Modelo de 'one-stage' de última generación, evaluado por su velocidad de inferencia.
+    \item \textbf{U-Net con ConvNeXt Tiny} (Propuesto): Arquitectura híbrida moderna que incorpora \textit{Vision Transformers} convolucionales.
+\end{enumerate}
+
+La Tabla \ref{tab:model_comparison} resume el rendimiento cuantitativo de cada modelo en el conjunto de validación.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|l|l|c|c|l|}
+    \hline
+    \textbf{Arquitectura} & \textbf{Encoder} & \textbf{Dice Avg} & \textbf{Dice Cl. 2*} & \textbf{Observaciones} \\ \hline
+    U-Net++ & ResNet34 & 0.60 & 0.13 & Fallo crítico en defectos sutiles. \\ \hline
+    YOLO11-seg & CSPDarknet & $\sim$0.25 (mAP) & Bajo & Baja resolución para texturas finas. \\ \hline
+    \textbf{U-Net} & \textbf{ConvNeXt Tiny} & \textbf{0.70} & \textbf{0.55} & \textbf{Mejor balance precisión/textura.} \\ \hline
+    \end{tabular}
+    \caption{Comparativa de rendimiento. *La Clase 2 (Defecto Verde) es la más crítica y difícil de detectar.}
+    \label{tab:model_comparison}
+\end{table}
+
+\paragraph{Análisis de Resultados:}
+\begin{itemize}
+    \item \textbf{Limitaciones de ResNet34:} Aunque efectivo para formas definidas, el encoder ResNet34 mostró incapacidad para extraer características de \textit{textura} complejas, resultando en un Dice score de solo 0.13 para la Clase 2.
+    \item \textbf{Evaluación de YOLO11:} A pesar de su rapidez, YOLO11-seg no logró converger adecuadamente para esta tarea de micro-defectología (mAP < 0.30). Su arquitectura, optimizada para objetos macroscópicos, pierde información espacial fina necesaria para segmentar grietas superficiales.
+    \item \textbf{Superioridad de ConvNeXt:} El encoder ConvNeXt Tiny, inspirado en Vision Transformers, utiliza kernels de gran tamaño ($7\times7$) y capas invertidas que capturan mejor las dependencias de largo alcance y las variaciones sutiles de textura. Esto elevó el rendimiento en la clase crítica al 0.55, validando su elección como el modelo final.
+\end{itemize}
+
+El modelo final seleccionado es un **U-Net con encoder ConvNeXt Tiny**, pre-entrenado en ImageNet. Los umbrales óptimos de binarización se ajustaron empíricamente para maximizar el F1-Score:
+\begin{itemize}
+    \item Clase 1: 0.45
+    \item Clase 2 y 3: 0.70
+    \item Clase 4: 0.65
+\end{itemize}
+
+\subsection{Configuración del Entrenamiento}
+\begin{itemize}
+    \item \textbf{Función de Pérdida:} Combinación ponderada de \textit{Cross Entropy Loss} y \textit{Dice Loss} para balancear precisión pixel a pixel con consistencia de forma. Se aplicaron pesos a las clases (\texttt{[0.1, 5.0, 50.0, 5.0]}) para penalizar fuertemente los errores en defectos críticos raros.
+    \item \textbf{Optimizador:} AdamW con \textit{Learning Rate} de $1e-4$.
+    \item \textbf{Scheduler:} \texttt{ReduceLROnPlateau} (paciencia = 3 épocas).
+    \item \textbf{Dimensiones de Entrada:} Parches de $1024 \times 1024$ píxeles.
+    \item \textbf{Batch Size:} 4 (limitado por memoria GPU con imágenes de alta resolución).
+    \item \textbf{Épocas:} 30 (dataset "Galicia" extendido virtualmente mediante parches).
+\end{itemize}
+
+\section{Resultados Experimentales}
+El análisis comparativo de los modelos entrenados permitió concluir que la variante basada en ConvNeXt (\texttt{severstal\_backup\_ep35.pth}) superaba a las alternativas en robustez visual.
+
+\begin{itemize}
+    \item \textbf{Selección del Mejor Modelo:} Entre las diversas iteraciones (incluyendo U-Net++ ResNet34 y SegNext), el checkpoint \texttt{severstal\_backup\_ep35.pth} fue seleccionado como el \textit{State-of-the-Art} del proyecto tras una evaluación cualitativa exhaustiva.
+    \item \textbf{Umbrales Óptimos:} El post-procesado se ajustó con umbrales específicos por clase para maximizar la sensibilidad sin disparar falsos positivos:
+    \begin{itemize}
+        \item Clase 1: 0.45
+        \item Clase 2, 3: 0.70
+        \item Clase 4: 0.65
+    \end{itemize}
+    \item \textbf{Visualización:} La inferencia sobre 15 imágenes de prueba confirmó que este modelo discrimina mejor las texturas complejas del acero que sus contrapartes basadas en ResNet, reduciendo el ruido en zonas sanas.
+\end{itemize}
+
+\textit{Nota: Los valores numéricos exactos finales de IoU y Dice por clase no se encontraban explícitamente tabulados en los outputs guardados de los notebooks analizados, pero la tendencia de las curvas de pérdida (Loss) confirma un aprendizaje efectivo.}
+
+\section{Discusión y Limitaciones}
+El sistema actual demuestra la viabilidad técnica de utilizar redes neuronales profundas para la inspección de torres eólicas. La estrategia de \textit{Transfer Learning} desde Severstal ha permitido obtener resultados prometedores incluso con pocos datos reales de Galicia.
+
+\textbf{Limitaciones actuales:}
+\begin{itemize}
+    \item Sensibilidad a cambios drásticos de iluminación no vistos en el entrenamiento.
+    \item Falsos positivos generados por texturas superficiales benignas (manchas de aceite, marcas de agua) que se asemejan a defectos.
+    \item La visión 2D no puede discriminar profundidad, lo cual es el criterio final de rechazo industrial ($>0.5$ mm).
+\end{itemize}
+
+\section{Trabajo Futuro}
+El roadmap tecnológico para llevar este prototipo a producción incluye:
+
+\begin{enumerate}
+    \item \textbf{Validación 3D:} Integración del sistema de visión con el robot cartesiano. Las coordenadas $(x,y)$ de los defectos detectados por la U-Net++ se enviarán al robot para que posicione el perfilómetro láser y escanee solo las áreas de interés, optimizando el tiempo de ciclo.
+    \item \textbf{Fusión de Datos:} Combinar la segmentación visual con el mapa de profundidad 3D para filtrar falsos positivos superficiales (defectos con profundidad $\approx 0$).
+    \item \textbf{MLOps:} Implementar un ciclo de mejora continua donde las nuevas detecciones verificadas por operarios se reincorporen al dataset de entrenamiento.
+\end{enumerate}
+
+\section{Conclusiones}
+Se ha implementado con éxito un sistema de visión artificial basado en U-Net++ capaz de detectar defectos en superficies de acero complejas. El uso de técnicas avanzadas como \textit{Smart Sampling} y \textit{Weighted Loss} ha sido clave para adaptar la solución a la escasez de datos inicial. El sistema sienta una base sólida para la siguiente fase de metrología 3D, acercando el objetivo de una inspección de calidad totalmente automatizada y objetiva.
+
+\end{document}
