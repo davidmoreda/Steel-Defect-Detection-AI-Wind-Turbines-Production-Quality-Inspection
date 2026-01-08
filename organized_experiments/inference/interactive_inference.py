@@ -9,6 +9,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 # ===============================
+# PARA EJECUTAR: uv run --no-sync interactive_inference.py
 # ===============================
 # CONFIGURACIÓN
 # ===============================
@@ -21,7 +22,7 @@ GT_LABEL_DIR = os.path.abspath(os.path.join(BASE_DIR, '../../../datasets/final_d
 
 # Rutas posibles del modelo
 POSSIBLE_PATHS = [
-    os.path.join(BASE_DIR, '../UnetConvNeXtTiny/models/severstal_backup_ep35.pth'),
+    os.path.join(BASE_DIR, '../UnetConvNeXtTiny/models/severstal_backup_ep40.pth'),
     'severstal_best.pth',
 ]
 

@@ -11,8 +11,8 @@ from tqdm import tqdm
 # ==========================================
 # CONFIG
 # ==========================================
-MODEL_PATH = '/home/dmore/code/TFM_David/CNN_Galicia_Toshiba/organized_experiments/dataset/severstal_best.pth' # Ajustar
-TEST_DIR = '/home/dmore/code/TFM_David/CNN_Galicia_Toshiba/final_dataset/test/images'
+MODEL_PATH = '/home/dmore/code/TFM_David/CNN_Galicia_Toshiba/Steel-Defect-Detection-AI-Wind-Turbines-Production-Quality-Inspection/organized_experiments/Unet++Resnet34/severstal_best.pth' # Ajustar
+TEST_DIR = '/home/dmore/code/TFM_David/CNN_Galicia_Toshiba/datasets/final_dataset/test/images'
 OUTPUT_DIR = 'predictions'
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
